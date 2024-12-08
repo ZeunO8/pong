@@ -4,6 +4,9 @@
 #include <memory>
 #include <thread>
 #include <vector>
+#include <unordered_map>
+#include <map>
+#include <functional>
 /*
  */
 struct fenster;
@@ -56,22 +59,32 @@ namespace pong
     std::shared_ptr<uint32_t> buf;
     struct fenster *f = 0;
     std::thread windowThread;
+    std::unordered_map<unsigned int, int> keys;
+    std::unordered_map<unsigned int, std::pair<unsigned int, std::map<unsigned int, std::function<void(const bool &)>>>> keyHandlers;
     std::shared_ptr<Scene> scene;
     PongGame(const int &windowWidth, const int &windowHeight);
     ~PongGame();
     void startWindow();
     void render();
+    void updateKeys();
+    unsigned int addKeyHandler(const unsigned int &key, const std::function<void(const bool &)> &callback);
+    void removeKeyHandler(const unsigned int &key, unsigned int &id);
     std::shared_ptr<Scene> setScene(const std::shared_ptr<Scene> &scene);
   };
   struct MainMenuScene : Scene
   {
     int borderWidth;
     int padding;
+    unsigned int upKeyId = 0;
+    unsigned int downKeyId = 0;
     std::shared_ptr<ButtonEntity> playerVsAIButton;
     std::shared_ptr<ButtonEntity> playerVsPlayerButton;
     std::shared_ptr<ButtonEntity> exitButton;
     std::vector<std::shared_ptr<ButtonEntity>> buttonsList;
     MainMenuScene(PongGame &pongGame);
+    ~MainMenuScene();
     void positionButtons();
+    void onUpKey(const bool &pressed);
+    void onDownKey(const bool &pressed);
   };
 }

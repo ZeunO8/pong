@@ -2,6 +2,8 @@
 */
 #include <Pong.hpp>
 #include <fenster.h>
+#include <iostream>
+#include <ostream>
 using namespace pong;
 /*
  */
@@ -93,6 +95,7 @@ void PongGame::startWindow()
   int64_t now = fenster_time();
   while (fenster_loop(f) == 0)
   {
+    updateKeys();
     fenster_rect(f, 0, 0, windowWidth, windowHeight, 0x00000000);
     render();
     int64_t time = fenster_time();
@@ -105,6 +108,45 @@ void PongGame::startWindow()
 void PongGame::render()
 {
   scene->render();
+};
+
+void PongGame::updateKeys()
+{
+  for (unsigned int i = 0; i < 256; ++i)
+  {
+    int &pressed = f->keys[i];
+    if (keys[i] != pressed)
+    {
+      keys[i] = pressed;
+      std::cout << "Key[" << i << "] = " << pressed << std::endl;
+      auto &handlersPair = keyHandlers[i];
+      auto &handlersMap = handlersPair.second;
+      for (auto &handlerPair : handlersMap)
+      {
+        handlerPair.second(!!pressed);
+      }
+    }
+  }
+};
+
+unsigned int PongGame::addKeyHandler(const unsigned int &key, const std::function<void(const bool &)> &callback)
+{
+  auto &handlersPair = keyHandlers[key];
+  auto id = ++handlersPair.first;
+  handlersPair.second[id] = callback;
+  return id;
+};
+
+void PongGame::removeKeyHandler(const unsigned int &key, unsigned int &id)
+{
+  auto &handlersPair = keyHandlers[key];
+  auto handlerIter = handlersPair.second.find(id);
+  if (handlerIter == handlersPair.second.end())
+  {
+    return;
+  }
+  handlersPair.second.erase(handlerIter);
+  id = 0;
 };
 
 std::shared_ptr<Scene> PongGame::setScene(const std::shared_ptr<Scene> &scene)
@@ -123,6 +165,68 @@ MainMenuScene::MainMenuScene(PongGame &pongGame):
   buttonsList({ playerVsAIButton, playerVsPlayerButton, exitButton })
 {
   positionButtons();
+  upKeyId = pongGame.addKeyHandler(17, std::bind(&MainMenuScene::onUpKey, this, std::placeholders::_1));
+  downKeyId = pongGame.addKeyHandler(18, std::bind(&MainMenuScene::onDownKey, this, std::placeholders::_1));
+};
+
+MainMenuScene::~MainMenuScene()
+{
+  pongGame.removeKeyHandler(17, upKeyId);
+  pongGame.removeKeyHandler(18, downKeyId);
+};
+
+void MainMenuScene::onUpKey(const bool &pressed)
+{
+  if (pressed)
+  {
+    auto buttonsListSize = buttonsList.size();
+    auto buttonsListData = buttonsList.data();
+    for (int i = 0; i < buttonsListSize; ++i)
+    {
+      auto &button = buttonsList[i];
+      if (button->selected)
+      {
+        button->selected = false;
+        auto prevI = i - 1;
+        if (prevI >= 0)
+        {
+          buttonsListData[prevI]->selected = true;
+        }
+        else
+        {
+          buttonsListData[buttonsListSize -1]->selected = true;
+        }
+        break;
+      }
+    }
+  }
+};
+
+void MainMenuScene::onDownKey(const bool &pressed)
+{
+  if (pressed)
+  {
+    auto buttonsListSize = buttonsList.size();
+    auto buttonsListData = buttonsList.data();
+    for (int i = 0; i < buttonsListSize; ++i)
+    {
+      auto &button = buttonsList[i];
+      if (button->selected)
+      {
+        button->selected = false;
+        auto nextI = i + 1;
+        if (nextI < buttonsListSize)
+        {
+          buttonsListData[nextI]->selected = true;
+        }
+        else
+        {
+          buttonsListData[0]->selected = true;
+        }
+        break;
+      }
+    }
+  }
 };
 
 void MainMenuScene::positionButtons()
