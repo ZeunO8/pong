@@ -10,25 +10,43 @@ void fenster_rect(struct fenster *f, int x, int y, int w, int h,
 void fenster_circle(struct fenster *f, int x, int y, int r, uint32_t c);
 void fenster_fill(struct fenster *f, int x, int y, uint32_t old,
                          uint32_t c);
-void fenster_text(struct fenster *f, int x, int y, char *s, int scale,
+void fenster_text(struct fenster *f, int x, int y, const char *s, int scale,
                          uint32_t c);
+std::pair<int, int> fenster_text_bounds(const char *s, int scale);
 int main()
 {
-  PongGame game(640, 480);
+  PongGame game(960, 540);
 };
 
-ButtonEntity::ButtonEntity(PongGame &pongGame, const char *text, const int &x, const int &y, const int &width, const int &height):
+ButtonEntity::ButtonEntity(PongGame &pongGame,
+                           const char *text,
+                           const int &x,
+                           const int &y,
+                           const int &width,
+                           const int &height,
+                           const int &borderWidth,
+                           const int &padding,
+                           const bool &selected):
   pongGame(pongGame),
   text(text),
   x(x),
   y(y),
   width(width),
-  height(height)
+  height(height),
+  borderWidth(borderWidth),
+  padding(padding),
+  selected(selected),
+  scale((height / 2 - (padding * 2) - (borderWidth * 2)) / 5),
+  textBounds(fenster_text_bounds(text, scale))
 {};
 
 void ButtonEntity::render()
 {
-  fenster_rect(pongGame.f, x, y, width, height, 0x00ff0000);
+  uint32_t borderColor = selected ? 0x00999999 : 0x00555555;
+  uint32_t bgColor = selected ? 0x00222222 : 0x00000000;
+  fenster_rect(pongGame.f, x, y, width, height, borderColor);
+  fenster_rect(pongGame.f, x + borderWidth, y + borderWidth, width - borderWidth * 2, height - borderWidth * 2, bgColor);
+  fenster_text(pongGame.f, x + width / 2 - std::get<0>(textBounds) / 2, y + height / 2 - std::get<1>(textBounds) / 2, text, scale, 0x00ffffff);
 };
 
 Scene::Scene(PongGame &pongGame):
@@ -75,6 +93,7 @@ void PongGame::startWindow()
   int64_t now = fenster_time();
   while (fenster_loop(f) == 0)
   {
+    fenster_rect(f, 0, 0, windowWidth, windowHeight, 0x00000000);
     render();
     int64_t time = fenster_time();
     if (time - now < 1000 / 60)
@@ -96,10 +115,17 @@ std::shared_ptr<Scene> PongGame::setScene(const std::shared_ptr<Scene> &scene)
 
 MainMenuScene::MainMenuScene(PongGame &pongGame):
   Scene(pongGame),
-  playerVsAIButton(std::dynamic_pointer_cast<ButtonEntity>(addEntity(std::make_shared<ButtonEntity>(pongGame, "Player vs AI", 0, 0, pongGame.windowWidth / 1.5, pongGame.windowHeight / 5)))),
-  playerVsPlayerButton(std::dynamic_pointer_cast<ButtonEntity>(addEntity(std::make_shared<ButtonEntity>(pongGame, "Player vs Player", 0, 0, pongGame.windowWidth / 1.5, pongGame.windowHeight / 5)))),
-  exitButton(std::dynamic_pointer_cast<ButtonEntity>(addEntity(std::make_shared<ButtonEntity>(pongGame, "Exit", 0, 0, pongGame.windowWidth / 1.5, pongGame.windowHeight / 5)))),
+  borderWidth(4),
+  padding(4),
+  playerVsAIButton(std::dynamic_pointer_cast<ButtonEntity>(addEntity(std::make_shared<ButtonEntity>(pongGame, "Player vs AI", 0, 0, int(pongGame.windowWidth / 1.5), pongGame.windowHeight / 5, borderWidth, padding, true)))),
+  playerVsPlayerButton(std::dynamic_pointer_cast<ButtonEntity>(addEntity(std::make_shared<ButtonEntity>(pongGame, "Player vs Player", 0, 0, int(pongGame.windowWidth / 1.5), pongGame.windowHeight / 5, borderWidth, padding, false)))),
+  exitButton(std::dynamic_pointer_cast<ButtonEntity>(addEntity(std::make_shared<ButtonEntity>(pongGame, "Exit", 0, 0, int(pongGame.windowWidth / 1.5), pongGame.windowHeight / 5, borderWidth, padding, false)))),
   buttonsList({ playerVsAIButton, playerVsPlayerButton, exitButton })
+{
+  positionButtons();
+};
+
+void MainMenuScene::positionButtons()
 {
   int buttonsTotalX = 0, buttonsTotalY = 0;
   auto buttonsListSize = buttonsList.size();
@@ -127,7 +153,7 @@ MainMenuScene::MainMenuScene(PongGame &pongGame):
       placementY += 2;
     }
   }
-};
+}
 
 void fenster_line(struct fenster *f, int x0, int y0, int x1, int y1,
                          uint32_t c) {
@@ -187,7 +213,7 @@ void fenster_fill(struct fenster *f, int x, int y, uint32_t old,
 // clang-format off
 uint16_t font5x3[] = {0x0000,0x2092,0x002d,0x5f7d,0x279e,0x52a5,0x7ad6,0x0012,0x4494,0x1491,0x017a,0x05d0,0x1400,0x01c0,0x0400,0x12a4,0x2b6a,0x749a,0x752a,0x38a3,0x4f4a,0x38cf,0x3bce,0x12a7,0x3aae,0x49ae,0x0410,0x1410,0x4454,0x0e38,0x1511,0x10e3,0x73ee,0x5f7a,0x3beb,0x624e,0x3b6b,0x73cf,0x13cf,0x6b4e,0x5bed,0x7497,0x2b27,0x5add,0x7249,0x5b7d,0x5b6b,0x3b6e,0x12eb,0x4f6b,0x5aeb,0x388e,0x2497,0x6b6d,0x256d,0x5f6d,0x5aad,0x24ad,0x72a7,0x6496,0x4889,0x3493,0x002a,0xf000,0x0011,0x6b98,0x3b79,0x7270,0x7b74,0x6750,0x95d6,0xb9ee,0x5b59,0x6410,0xb482,0x56e8,0x6492,0x5be8,0x5b58,0x3b70,0x976a,0xcd6a,0x1370,0x38f0,0x64ba,0x3b68,0x2568,0x5f68,0x54a8,0xb9ad,0x73b8,0x64d6,0x2492,0x3593,0x03e0};
 // clang-format on
-void fenster_text(struct fenster *f, int x, int y, char *s, int scale,
+void fenster_text(struct fenster *f, int x, int y, const char *s, int scale,
                          uint32_t c) {
   while (*s) {
     char chr = *s++;
@@ -204,3 +230,14 @@ void fenster_text(struct fenster *f, int x, int y, char *s, int scale,
     x = x + 4 * scale;
   }
 }
+
+std::pair<int, int> fenster_text_bounds(const char *s, int scale)
+{
+  int x = 0, y = 5 * scale;
+  while (*s) {
+    char chr = *s++;
+    x += 4 * scale;
+  }
+  x -= scale;
+  return {x, y};
+};

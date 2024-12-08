@@ -17,14 +17,27 @@ namespace pong
     virtual void render() = 0;
   };
   struct ButtonEntity : IEntity
-	{
+{
   	PongGame &pongGame;
     const char *text;
     int x;
     int y;
     int width;
     int height;
-    ButtonEntity(PongGame &pongGame, const char *text, const int &x, const int &y, const int &width, const int &height);
+    int borderWidth;
+    int padding;
+    bool selected;
+    int scale;
+    std::pair<int, int> textBounds;
+    ButtonEntity(PongGame &pongGame,
+                 const char *text,
+                 const int &x,
+                 const int &y,
+                 const int &width,
+                 const int &height,
+                 const int &borderWidth,
+                 const int &padding,
+                 const bool &selected);
     void render() override;
   };
   struct Scene
@@ -52,10 +65,13 @@ namespace pong
   };
   struct MainMenuScene : Scene
   {
+    int borderWidth;
+    int padding;
     std::shared_ptr<ButtonEntity> playerVsAIButton;
     std::shared_ptr<ButtonEntity> playerVsPlayerButton;
     std::shared_ptr<ButtonEntity> exitButton;
     std::vector<std::shared_ptr<ButtonEntity>> buttonsList;
     MainMenuScene(PongGame &pongGame);
+    void positionButtons();
   };
 }
