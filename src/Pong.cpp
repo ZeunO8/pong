@@ -101,6 +101,32 @@ MainMenuScene::MainMenuScene(PongGame &pongGame):
   exitButton(std::dynamic_pointer_cast<ButtonEntity>(addEntity(std::make_shared<ButtonEntity>(pongGame, "Exit", 0, 0, pongGame.windowWidth / 1.5, pongGame.windowHeight / 5)))),
   buttonsList({ playerVsAIButton, playerVsPlayerButton, exitButton })
 {
+  int buttonsTotalX = 0, buttonsTotalY = 0;
+  auto buttonsListSize = buttonsList.size();
+  auto buttonsListData = buttonsList.data();
+  buttonsTotalX += buttonsListData[0]->width;
+  for (unsigned int buttonIndex = 0; buttonIndex < buttonsListSize; ++buttonIndex)
+  {
+    auto &button = buttonsListData[buttonIndex];
+    buttonsTotalY += button->height;
+    if (buttonIndex < buttonsListSize - 1)
+    {
+      buttonsTotalY += 2;
+    }
+  }
+  int placementX = pongGame.windowWidth / 2 - buttonsTotalX / 2;
+  int placementY = pongGame.windowHeight / 2 - buttonsTotalY / 2;
+  for (unsigned int buttonIndex = 0; buttonIndex < buttonsListSize; ++buttonIndex)
+  {
+    auto &button = buttonsListData[buttonIndex];
+    button->x = placementX;
+    button->y = placementY;
+    placementY += button->height;
+    if (buttonIndex < buttonsListSize - 1)
+    {
+      placementY += 2;
+    }
+  }
 };
 
 void fenster_line(struct fenster *f, int x0, int y0, int x1, int y1,
