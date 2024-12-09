@@ -409,25 +409,25 @@ void Ball::startMoving()
   case 1:
     {
       velocityX = 2;
-      velocityY = 2;
+      velocityY = 4;
       break;
     };
   case 2:
     {
       velocityX = -2;
-      velocityY = 2;
+      velocityY = 4;
       break;
     };
   case 3:
     {
       velocityX = 2;
-      velocityY = -2;
+      velocityY = -4;
       break;
     };
   case 4:
     {
       velocityX = -2;
-      velocityY = -2;
+      velocityY = -4;
       break;
     };
   }
@@ -444,38 +444,40 @@ void Ball::render()
   }
   else if (x <= 28 || x >= pongGame.windowWidth - 28)
   {
-    if (x == 16)
+    if (x <= 16)
     {
       ++pongScene.rightScore;
       reset();
       return;
     }
-    else if (std::abs(x - 28) <= 1)
+    else if (x == 28)
     {
       auto &leftBat = *pongScene.leftBat;
       if (y < leftBat.y - leftBat.height / 2 || y > leftBat.y + leftBat.height / 2)
       {
-        velocityY = velocityY + (leftBat.velocityY * 1.5) / 1.5;
         goto _draw;
       }
+      else
+      {
+        velocityY = velocityY + (leftBat.velocityY * 1) / 1;
+      }
     }
-    else if (x == pongGame.windowWidth - 16)
-    {
-      goto _draw;
-    }
-    else if (x == pongGame.windowWidth - 16)
+    else if (x >= pongGame.windowWidth - 16)
     {
       ++pongScene.leftScore;
       reset();
       return;
     }
-    else if (std::abs(x - pongGame.windowWidth - 28) <= 1)
+    else if (x == pongGame.windowWidth - 28)
     {
       auto &rightBat = *pongScene.rightBat;
       if (y < rightBat.y - rightBat.height / 2 || y > rightBat.y + rightBat.height / 2)
       {
-        velocityY = velocityY + (rightBat.velocityY * 1.5) / 1.5;
         goto _draw;
+      }
+      else
+      {
+        velocityY = velocityY + (rightBat.velocityY * 1) / 1;
       }
     }
     else if (x < 28 || x > pongGame.windowWidth - 28)
