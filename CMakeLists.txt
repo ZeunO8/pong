@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 20)
 
 include_directories(include)
 include_directories(vendor/Zeuron/include)
-include_directories(vendor/Zeuron/vendor/fenster)
+add_subdirectory(vendor/Zeuron)
+include_directories(vendor/Zeuron/vendor/fenster/include)
+include_directories(vendor/Zeuron/vendor/ByteStream/include)
 
 add_executable(pong src/Pong.cpp)
+
+target_link_libraries(pong zeuron)

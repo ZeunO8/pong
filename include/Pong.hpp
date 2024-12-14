@@ -91,6 +91,7 @@ namespace pong
     unsigned int downKeyId = 0;
     unsigned int enterKeyId = 0;
     std::shared_ptr<ButtonEntity> playerVsAIButton;
+    std::shared_ptr<ButtonEntity> trainAIButton;
     std::shared_ptr<ButtonEntity> playerVsPlayerButton;
     std::shared_ptr<ButtonEntity> exitButton;
     std::vector<std::shared_ptr<ButtonEntity>> buttonsList;
@@ -101,6 +102,7 @@ namespace pong
     void onDownKey(const bool &pressed);
     void onEnterKey(const bool &pressed);
     void onPlayerVsAIEnter();
+    void onTrainAIEnter();
     void onPlayerVsPlayerEnter();
     void onExitEnter();
   };
@@ -121,6 +123,16 @@ namespace pong
     void onUpKey(const bool &pressed);
     void onDownKey(const bool &pressed);
   };
+  struct Point
+  {
+    float x;
+    float y;
+  };
+  struct Bounce
+  {
+    Point start;
+    Point end;
+  };
   struct Ball : IEntity
   {
     PongScene &pongScene;
@@ -129,16 +141,32 @@ namespace pong
     int radius;
     float velocityX;
     float velocityY;
+    PongScene *pongScenePointer = 0;
+    std::pair<std::vector<Bounce>, Point> trajectory;
     Ball(PongGame &pongGame, PongScene &pongScene, const int &radius);
     void startMoving();
     void render() override;
     void reset();
+    std::pair<std::vector<Bounce>, Point> calculateTrajectory();
+  };
+  struct PlayArea
+  {
+    float x;
+    float y;
+    float width;
+    float height;
   };
   struct Board : IEntity
   {
     PongScene &pongScene;
+    float boardX;
+    float boardY;
+    float boardWidth;
+    float boardHeight;
+    PlayArea playArea;
     Board(PongGame &pongGame, PongScene &pongScene);
     void render() override;
+    PlayArea& getPlayArea();
   };
   struct Countdown : IEntity
   {
@@ -160,11 +188,14 @@ namespace pong
     std::shared_ptr<Board> board;
     std::shared_ptr<Ball> ball;
     std::shared_ptr<Countdown> countdown;
+    PlayArea& playArea;
     unsigned char leftScore = 0;
     unsigned char rightScore = 0;
     unsigned int countdownId;
     unsigned int ballId;
+    bool gameStarted = false;
     PongScene(PongGame &pongGame, const std::shared_ptr<Bat> &leftBat, const std::shared_ptr<Bat> &rightBat);
+    ~PongScene();
     void onCountdownZero();
   };
   struct PlayerBat : Bat
@@ -178,5 +209,13 @@ namespace pong
     unsigned int upKeyId;
     unsigned int downKeyId;
     PlayerBat(PongGame &pongGame, const Bat::Side &side, const UseKeys &useKeys);
+  };
+  struct AIBat : Bat
+  {
+    std::thread activationThread;
+    std::shared_ptr<PongScene> pongScenePointer;
+    AIBat(PongGame &pongGame, const Bat::Side &side);
+    void startActivation(const std::shared_ptr<PongScene> &pongScenePointer);
+    void activationFunction();
   };
 }
