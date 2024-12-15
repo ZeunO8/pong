@@ -1,7 +1,6 @@
 /*
 */
 #include <Pong.hpp>
-#include <fenster.hpp>
 #include <iostream>
 #include <ostream>
 #include <string>
@@ -22,12 +21,6 @@ std::shared_ptr<NeuralNetwork> loadOrCreateAINetwork();
 void saveAINetwork();
 std::mutex aiNetworkMutex;
 std::shared_ptr<NeuralNetwork> aiNetwork;
-void fenster_line(struct fenster* f, int x0, int y0, int x1, int y1, uint32_t c);
-void fenster_rect(struct fenster* f, int x, int y, int w, int h, uint32_t c);
-void fenster_circle(struct fenster* f, int x, int y, int r, uint32_t c);
-void fenster_fill(struct fenster* f, int x, int y, uint32_t old, uint32_t c);
-void fenster_text(struct fenster* f, int x, int y, const char* s, int scale, uint32_t c);
-std::pair<int, int> fenster_text_bounds(const char* s, int scale);
 
 int main()
 {
@@ -37,12 +30,7 @@ int main()
   saveAINetwork();
 };
 
-IEntity::IEntity(PongGame& pongGame):
-  pongGame(pongGame)
-{
-};
-
-ButtonEntity::ButtonEntity(PongGame& pongGame,
+ButtonEntity::ButtonEntity(anex::IGame& game,
                            const char* text,
                            const int& x,
                            const int& y,
@@ -52,7 +40,7 @@ ButtonEntity::ButtonEntity(PongGame& pongGame,
                            const int& padding,
                            const bool& selected,
                            const std::function<void()>& onEnter):
-  IEntity(pongGame),
+  IEntity(game),
   text(text),
   x(x),
   y(y),
@@ -69,166 +57,23 @@ ButtonEntity::ButtonEntity(PongGame& pongGame,
 
 void ButtonEntity::render()
 {
+  auto &fensterGame = (FensterGame &)game;
   uint32_t borderColor = selected ? 0x00999999 : 0x00555555;
   uint32_t bgColor = selected ? 0x00222222 : 0x00000000;
-  fenster_rect(pongGame.f, x, y, width, height, borderColor);
-  fenster_rect(pongGame.f, x + borderWidth, y + borderWidth, width - borderWidth * 2, height - borderWidth * 2,
+  fenster_rect(fensterGame.f, x, y, width, height, borderColor);
+  fenster_rect(fensterGame.f, x + borderWidth, y + borderWidth, width - borderWidth * 2, height - borderWidth * 2,
                bgColor);
-  fenster_text(pongGame.f, x + width / 2 - std::get<0>(textBounds) / 2, y + height / 2 - std::get<1>(textBounds) / 2,
+  fenster_text(fensterGame.f, x + width / 2 - std::get<0>(textBounds) / 2, y + height / 2 - std::get<1>(textBounds) / 2,
                text, scale, 0x00ffffff);
 };
-
-Scene::Scene(PongGame& pongGame):
-  pongGame(pongGame)
-{
-};
-
-unsigned int Scene::addEntity(const std::shared_ptr<IEntity>& entity)
-{
-  auto id = ++entitiesCount;
-  entities[id] = entity;
-  return id;
-};
-
-void Scene::removeEntity(const unsigned int& id)
-{
-  auto entityIter = entities.find(id);
-  if (entityIter != entities.end())
-  {
-    entities.erase(entityIter);
-  }
-};
-
-void Scene::render()
-{
-  for (auto& entityPair : entities)
-  {
-    auto& entity = entityPair.second;
-    entity->render();
-  }
-}
 
 /*
  */
 PongGame::PongGame(const int& windowWidth, const int& windowHeight):
-  windowWidth(windowWidth),
-  windowHeight(windowHeight),
-  buf((uint32_t*)malloc(windowWidth * windowHeight * sizeof(uint32_t)), free),
-  f(new struct fenster({"pong", windowWidth, windowHeight, buf.get()})),
-  windowThread(&PongGame::startWindow, this)
+  FensterGame(windowWidth, windowHeight)
 {
-  setScene(std::make_shared<MainMenuScene>(*this));
+  setIScene(std::make_shared<MainMenuScene>(*this));
   escKeyId = addKeyHandler(27, std::bind(&PongGame::onEscape, this, std::placeholders::_1));
-};
-
-PongGame::~PongGame()
-{
-  windowThread.join();
-  delete f;
-};
-
-void PongGame::startWindow()
-{
-  fenster_open(f);
-  uint32_t t = 0;
-  int64_t now = fenster_time();
-  while (fenster_loop(f) == 0)
-  {
-    updateKeys();
-    fenster_rect(f, 0, 0, windowWidth, windowHeight, 0x00000000);
-    render();
-    int64_t time = fenster_time();
-    if (time - now < 1000 / 60)
-      fenster_sleep(time - now);
-    now = time;
-  }
-};
-
-void PongGame::render()
-{
-  scene->render();
-};
-
-void PongGame::updateKeys()
-{
-  for (unsigned int i = 0; i < 256; ++i)
-  {
-    int& pressed = f->keys[i];
-    if (keys[i] != pressed)
-    {
-      keys[i] = pressed;
-      std::cout << "Key[" << i << "] = " << pressed << std::endl;
-      {
-        auto& handlersPair = keyHandlers[i];
-        auto& handlersMap = handlersPair.second;
-        for (auto& handlerPair : handlersMap)
-        {
-          handlerPair.second(!!pressed);
-        }
-      }
-    }
-    if (pressed)
-    {
-      auto& handlersPair = keyUpdateHandlers[i];
-      auto& handlersMap = handlersPair.second;
-      for (auto& handlerPair : handlersMap)
-      {
-        handlerPair.second();
-      }
-    }
-  }
-};
-
-unsigned int PongGame::addKeyHandler(const unsigned int& key, const std::function<void(const bool&)>& callback)
-{
-  auto& handlersPair = keyHandlers[key];
-  auto id = ++handlersPair.first;
-  handlersPair.second[id] = callback;
-  return id;
-};
-
-void PongGame::removeKeyHandler(const unsigned int& key, unsigned int& id)
-{
-  auto& handlersPair = keyHandlers[key];
-  auto handlerIter = handlersPair.second.find(id);
-  if (handlerIter == handlersPair.second.end())
-  {
-    return;
-  }
-  handlersPair.second.erase(handlerIter);
-  id = 0;
-};
-
-unsigned int PongGame::addKeyUpdateHandler(const unsigned int& key, const std::function<void()>& callback)
-{
-  auto& handlersPair = keyUpdateHandlers[key];
-  auto id = ++handlersPair.first;
-  handlersPair.second[id] = callback;
-  return id;
-};
-
-void PongGame::removeKeyUpdateHandler(const unsigned int& key, unsigned int& id)
-{
-  auto& handlersPair = keyUpdateHandlers[key];
-  auto handlerIter = handlersPair.second.find(id);
-  if (handlerIter == handlersPair.second.end())
-  {
-    return;
-  }
-  handlersPair.second.erase(handlerIter);
-  id = 0;
-};
-
-std::shared_ptr<Scene> PongGame::setScene(const std::shared_ptr<Scene>& scene)
-{
-  this->scene = scene;
-  return scene;
-};
-
-void PongGame::close()
-{
-  open = false;
-  fenster_close(f);
 };
 
 void PongGame::onEscape(const bool& pressed)
@@ -239,22 +84,22 @@ void PongGame::onEscape(const bool& pressed)
   }
 };
 
-MainMenuScene::MainMenuScene(PongGame& pongGame):
-  Scene(pongGame),
+MainMenuScene::MainMenuScene(anex::IGame& game):
+  IScene(game),
   borderWidth(4),
   padding(4),
-  playerVsAIButton(std::make_shared<ButtonEntity>(pongGame, "Player vs AI", 0, 0, int(pongGame.windowWidth / 1.5),
-                                                  pongGame.windowHeight / 5, borderWidth, padding, true,
+  playerVsAIButton(std::make_shared<ButtonEntity>(game, "Player vs AI", 0, 0, int(game.windowWidth / 1.5),
+                                                  game.windowHeight / 5, borderWidth, padding, true,
                                                   std::bind(&MainMenuScene::onPlayerVsAIEnter, this))),
-  trainAIButton(std::make_shared<ButtonEntity>(pongGame, "Train AI", 0, 0, int(pongGame.windowWidth / 1.5),
-                                               pongGame.windowHeight / 5, borderWidth, padding, false,
+  trainAIButton(std::make_shared<ButtonEntity>(game, "Train AI", 0, 0, int(game.windowWidth / 1.5),
+                                               game.windowHeight / 5, borderWidth, padding, false,
                                                std::bind(&MainMenuScene::onTrainAIEnter, this))),
-  playerVsPlayerButton(std::make_shared<ButtonEntity>(pongGame, "Player vs Player", 0, 0,
-                                                      int(pongGame.windowWidth / 1.5), pongGame.windowHeight / 5,
+  playerVsPlayerButton(std::make_shared<ButtonEntity>(game, "Player vs Player", 0, 0,
+                                                      int(game.windowWidth / 1.5), game.windowHeight / 5,
                                                       borderWidth, padding, false,
                                                       std::bind(&MainMenuScene::onPlayerVsPlayerEnter, this))),
-  exitButton(std::make_shared<ButtonEntity>(pongGame, "Exit", 0, 0, int(pongGame.windowWidth / 1.5),
-                                            pongGame.windowHeight / 5, borderWidth, padding, false,
+  exitButton(std::make_shared<ButtonEntity>(game, "Exit", 0, 0, int(game.windowWidth / 1.5),
+                                            game.windowHeight / 5, borderWidth, padding, false,
                                             std::bind(&MainMenuScene::onExitEnter, this))),
   buttonsList({playerVsAIButton, trainAIButton, playerVsPlayerButton, exitButton})
 {
@@ -263,15 +108,15 @@ MainMenuScene::MainMenuScene(PongGame& pongGame):
   addEntity(playerVsPlayerButton);
   addEntity(exitButton);
   positionButtons();
-  upKeyId = pongGame.addKeyHandler(17, std::bind(&MainMenuScene::onUpKey, this, std::placeholders::_1));
-  downKeyId = pongGame.addKeyHandler(18, std::bind(&MainMenuScene::onDownKey, this, std::placeholders::_1));
-  enterKeyId = pongGame.addKeyHandler(10, std::bind(&MainMenuScene::onEnterKey, this, std::placeholders::_1));
+  upKeyId = game.addKeyHandler(17, std::bind(&MainMenuScene::onUpKey, this, std::placeholders::_1));
+  downKeyId = game.addKeyHandler(18, std::bind(&MainMenuScene::onDownKey, this, std::placeholders::_1));
+  enterKeyId = game.addKeyHandler(10, std::bind(&MainMenuScene::onEnterKey, this, std::placeholders::_1));
 };
 
 MainMenuScene::~MainMenuScene()
 {
-  pongGame.removeKeyHandler(17, upKeyId);
-  pongGame.removeKeyHandler(18, downKeyId);
+  game.removeKeyHandler(17, upKeyId);
+  game.removeKeyHandler(18, downKeyId);
 };
 
 void MainMenuScene::positionButtons()
@@ -289,8 +134,8 @@ void MainMenuScene::positionButtons()
       buttonsTotalY += 2;
     }
   }
-  int placementX = pongGame.windowWidth / 2 - buttonsTotalX / 2;
-  int placementY = pongGame.windowHeight / 2 - buttonsTotalY / 2;
+  int placementX = game.windowWidth / 2 - buttonsTotalX / 2;
+  int placementY = game.windowHeight / 2 - buttonsTotalY / 2;
   for (unsigned int buttonIndex = 0; buttonIndex < buttonsListSize; ++buttonIndex)
   {
     auto& button = buttonsListData[buttonIndex];
@@ -378,10 +223,10 @@ void MainMenuScene::onEnterKey(const bool& pressed)
 
 void MainMenuScene::onPlayerVsAIEnter()
 {
-  auto pongScenePointer = std::dynamic_pointer_cast<PongScene>(pongGame.setScene(std::make_shared<PongScene>(
-    pongGame,
-    std::make_shared<AIBat>(pongGame, Bat::Left),
-    std::make_shared<PlayerBat>(pongGame, Bat::Right, PlayerBat::UpDown)
+  auto pongScenePointer = std::dynamic_pointer_cast<PongScene>(game.setIScene(std::make_shared<PongScene>(
+    game,
+    std::make_shared<AIBat>(game, Bat::Left),
+    std::make_shared<PlayerBat>(game, Bat::Right, PlayerBat::UpDown)
   )));
   auto aiLeftBatPointer = std::dynamic_pointer_cast<AIBat>(pongScenePointer->leftBat);
   aiLeftBatPointer->startActivation(pongScenePointer);
@@ -389,10 +234,10 @@ void MainMenuScene::onPlayerVsAIEnter()
 
 void MainMenuScene::onTrainAIEnter()
 {
-  auto pongScenePointer = std::dynamic_pointer_cast<PongScene>(pongGame.setScene(std::make_shared<PongScene>(
-    pongGame,
-    std::make_shared<AIBat>(pongGame, Bat::Left),
-    std::make_shared<AIBat>(pongGame, Bat::Right)
+  auto pongScenePointer = std::dynamic_pointer_cast<PongScene>(game.setIScene(std::make_shared<PongScene>(
+    game,
+    std::make_shared<AIBat>(game, Bat::Left),
+    std::make_shared<AIBat>(game, Bat::Right)
   )));
   auto aiLeftBatPointer = std::dynamic_pointer_cast<AIBat>(pongScenePointer->leftBat);
   aiLeftBatPointer->startActivation(pongScenePointer);
@@ -402,35 +247,36 @@ void MainMenuScene::onTrainAIEnter()
 
 void MainMenuScene::onPlayerVsPlayerEnter()
 {
-  pongGame.setScene(std::make_shared<PongScene>(
-    pongGame,
-    std::make_shared<PlayerBat>(pongGame, Bat::Left, PlayerBat::WS),
-    std::make_shared<PlayerBat>(pongGame, Bat::Right, PlayerBat::UpDown)
+  game.setIScene(std::make_shared<PongScene>(
+    game,
+    std::make_shared<PlayerBat>(game, Bat::Left, PlayerBat::WS),
+    std::make_shared<PlayerBat>(game, Bat::Right, PlayerBat::UpDown)
   ));
 };
 
 void MainMenuScene::onExitEnter()
 {
-  pongGame.close();
+  game.close();
 };
 
-Bat::Bat(PongGame& pongGame, const Bat::Side& side):
-  IEntity(pongGame),
+Bat::Bat(anex::IGame& game, const Bat::Side& side):
+  IEntity(game),
   side(side),
-  height(pongGame.windowHeight / 5)
+  height(game.windowHeight / 5)
 {
-  x = side == Left ? 20 : pongGame.windowWidth - 20;
-  y = pongGame.windowHeight / 2;
+  x = side == Left ? 20 : game.windowWidth - 20;
+  y = game.windowHeight / 2;
 };
 
 void Bat::render()
 {
-  if ((velocityY < 0 && y - height / 2 > 44) || (velocityY > 0 && y + height / 2 < pongGame.windowHeight - 44))
+  auto &fensterGame = (FensterGame &)game;
+  if ((velocityY < 0 && y - height / 2 > 44) || (velocityY > 0 && y + height / 2 < game.windowHeight - 44))
   {
     y += velocityY;
   }
   uint32_t color = side == Bat::Left ? 0x00ff0000 : 0x000000ff;
-  fenster_rect(pongGame.f, x - 2, y - height / 2, 4, height, color);
+  fenster_rect(fensterGame.f, x - 2, y - height / 2, 4, height, color);
 };
 
 void Bat::onUpKey(const bool& pressed)
@@ -443,8 +289,8 @@ void Bat::onDownKey(const bool& pressed)
   velocityY = pressed ? 8 : 0;
 };
 
-Ball::Ball(PongGame& pongGame, PongScene& pongScene, const int& radius):
-  IEntity(pongGame),
+Ball::Ball(anex::IGame& game, PongScene& pongScene, const int& radius):
+  IEntity(game),
   pongScene(pongScene),
   radius(radius)
 {
@@ -487,13 +333,14 @@ void Ball::startMoving()
 
 void Ball::render()
 {
+  auto &fensterGame = (FensterGame &)game;
   x += velocityX;
   y += velocityY;
-  if (y <= 40 || y >= pongGame.windowHeight - 40)
+  if (y <= 40 || y >= game.windowHeight - 40)
   {
     velocityY = -velocityY;
   }
-  else if (x <= 28 || x >= pongGame.windowWidth - 28)
+  else if (x <= 28 || x >= game.windowWidth - 28)
   {
     if (x <= 16)
     {
@@ -513,13 +360,13 @@ void Ball::render()
         velocityY = velocityY + (leftBat.velocityY * 1) / 1;
       }
     }
-    else if (x >= pongGame.windowWidth - 16)
+    else if (x >= game.windowWidth - 16)
     {
       ++pongScene.leftScore;
       reset();
       return;
     }
-    else if (x == pongGame.windowWidth - 28)
+    else if (x == game.windowWidth - 28)
     {
       auto& rightBat = *pongScene.rightBat;
       if (y < rightBat.y - rightBat.height / 2 || y > rightBat.y + rightBat.height / 2)
@@ -531,7 +378,7 @@ void Ball::render()
         velocityY = velocityY + (rightBat.velocityY * 1) / 1;
       }
     }
-    else if (x < 28 || x > pongGame.windowWidth - 28)
+    else if (x < 28 || x > game.windowWidth - 28)
     {
       goto _draw;
     }
@@ -539,7 +386,7 @@ void Ball::render()
     velocityX = -velocityX;
   }
 _draw:
-  fenster_circle(pongGame.f, x, y, radius, 0x00ffffff);
+  fenster_circle(fensterGame.f, x, y, radius, 0x00ffffff);
   trajectory = calculateTrajectory();
   auto &bounces = std::get<0>(trajectory);
   auto &finalPosition = std::get<1>(trajectory);
@@ -547,14 +394,14 @@ _draw:
   {
     auto &start = bounce.start;
     auto &end = bounce.end;
-    fenster_line(pongGame.f, start.x, start.y, end.x, end.y, 0x0000ff00);
+    fenster_line(fensterGame.f, start.x, start.y, end.x, end.y, 0x0000ff00);
   }
 };
 
 void Ball::reset()
 {
-  x = pongGame.windowWidth / 2;
-  y = pongGame.windowHeight / 2;
+  x = game.windowWidth / 2;
+  y = game.windowHeight / 2;
   startMoving();
 };
 
@@ -626,31 +473,32 @@ std::pair<std::vector<Bounce>, Point> Ball::calculateTrajectory()
   }
 };
 
-Board::Board(PongGame& pongGame, PongScene& pongScene):
-  IEntity(pongGame),
+Board::Board(anex::IGame& game, PongScene& pongScene):
+  IEntity(game),
   pongScene(pongScene),
-  boardX((float)(12 + (pongGame.windowWidth - 24) / 2)),
-  boardY((float)(36 + (pongGame.windowHeight - 72) / 2)),
-  boardWidth((float)pongGame.windowWidth - 24),
-  boardHeight((float)pongGame.windowHeight - 72),
+  boardX((float)(12 + (game.windowWidth - 24) / 2)),
+  boardY((float)(36 + (game.windowHeight - 72) / 2)),
+  boardWidth((float)game.windowWidth - 24),
+  boardHeight((float)game.windowHeight - 72),
   playArea({boardX, boardY, boardWidth, boardHeight})
 {
 };
 
 void Board::render()
 {
+  auto &fensterGame = (FensterGame &)game;
   // white border
-  fenster_rect(pongGame.f, 8, 32, pongGame.windowWidth - 16, pongGame.windowHeight - 64, 0x00ffffff);
+  fenster_rect(fensterGame.f, 8, 32, game.windowWidth - 16, game.windowHeight - 64, 0x00ffffff);
   // black play area
-  fenster_rect(pongGame.f, 12, 36, pongGame.windowWidth - 24, pongGame.windowHeight - 72, 0x00000000);
+  fenster_rect(fensterGame.f, 12, 36, game.windowWidth - 24, game.windowHeight - 72, 0x00000000);
   // blue left hit rect
-  fenster_rect(pongGame.f, 12, 36, 4, pongGame.windowHeight - 72, 0x000000ff);
+  fenster_rect(fensterGame.f, 12, 36, 4, game.windowHeight - 72, 0x000000ff);
   // red right hit rect
-  fenster_rect(pongGame.f, pongGame.windowWidth - 16, 36, 4, pongGame.windowHeight - 72, 0x00ff0000);
+  fenster_rect(fensterGame.f, game.windowWidth - 16, 36, 4, game.windowHeight - 72, 0x00ff0000);
   // left score
-  fenster_text(pongGame.f, pongGame.windowWidth / 4, 6, std::to_string(pongScene.leftScore).c_str(), 4, 0x00ffffff);
+  fenster_text(fensterGame.f, game.windowWidth / 4, 6, std::to_string(pongScene.leftScore).c_str(), 4, 0x00ffffff);
   // right score
-  fenster_text(pongGame.f, pongGame.windowWidth / 2 + pongGame.windowWidth / 4, 6,
+  fenster_text(fensterGame.f, game.windowWidth / 2 + game.windowWidth / 4, 6,
                std::to_string(pongScene.rightScore).c_str(), 4, 0x00ffffff);
 };
 
@@ -659,9 +507,9 @@ PlayArea& Board::getPlayArea()
   return playArea;
 };
 
-Countdown::Countdown(PongGame& pongGame, const int& x, const int& y, const int& scale,
+Countdown::Countdown(anex::IGame& game, const int& x, const int& y, const int& scale,
                      const std::function<void()>& onZero):
-  IEntity(pongGame),
+  IEntity(game),
   x(x),
   y(y),
   scale(scale),
@@ -678,7 +526,8 @@ Countdown::~Countdown()
 
 void Countdown::render()
 {
-  fenster_text(pongGame.f, x - int(1.5 * scale), y - int(2.5 * scale), std::to_string(timer).c_str(), scale,
+  auto &fensterGame = (FensterGame &)game;
+  fenster_text(fensterGame.f, x - int(1.5 * scale), y - int(2.5 * scale), std::to_string(timer).c_str(), scale,
                0x00ffffff);
 };
 
@@ -687,7 +536,7 @@ void Countdown::startCountdown()
   while (timer > 0)
   {
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    if (!pongGame.open)
+    if (!game.open)
     {
       return;
     }
@@ -696,14 +545,14 @@ void Countdown::startCountdown()
   onZero();
 };
 
-PongScene::PongScene(PongGame& pongGame, const std::shared_ptr<Bat>& leftBat, const std::shared_ptr<Bat>& rightBat):
-  Scene(pongGame),
+PongScene::PongScene(anex::IGame& game, const std::shared_ptr<Bat>& leftBat, const std::shared_ptr<Bat>& rightBat):
+  IScene(game),
   leftBat(leftBat),
   rightBat(rightBat),
-  board(std::make_shared<Board>(pongGame, *this)),
-  ball(std::make_shared<Ball>(pongGame, *this, 4)),
-  countdown(std::make_shared<Countdown>(pongGame, pongGame.windowWidth / 2, pongGame.windowHeight / 2,
-                                        pongGame.windowHeight / 30, std::bind(&PongScene::onCountdownZero, this))),
+  board(std::make_shared<Board>(game, *this)),
+  ball(std::make_shared<Ball>(game, *this, 4)),
+  countdown(std::make_shared<Countdown>(game, game.windowWidth / 2, game.windowHeight / 2,
+                                        game.windowHeight / 30, std::bind(&PongScene::onCountdownZero, this))),
   playArea(board->getPlayArea())
 {
   ball->pongScenePointer = this;
@@ -725,15 +574,15 @@ void PongScene::onCountdownZero()
   gameStarted = true;
 };
 
-PlayerBat::PlayerBat(PongGame& pongGame, const Bat::Side& side, const UseKeys& useKeys):
-  Bat(pongGame, side),
+PlayerBat::PlayerBat(anex::IGame& game, const Bat::Side& side, const UseKeys& useKeys):
+  Bat(game, side),
   useKeys(useKeys)
 {
-  upKeyId = pongGame.addKeyHandler(
+  upKeyId = game.addKeyHandler(
     useKeys == UseKeys::WS ? 87 : 17,
     std::bind(&Bat::onUpKey, this, std::placeholders::_1)
   );
-  downKeyId = pongGame.addKeyHandler(
+  downKeyId = game.addKeyHandler(
     useKeys == UseKeys::WS ? 83 : 18,
     std::bind(&Bat::onDownKey, this, std::placeholders::_1)
   );
@@ -809,8 +658,8 @@ void saveAINetwork()
   writeBufferToFile(nnStream.bytes.get(), nnStream.bytesSize, "pong.nrl");
 };
 
-AIBat::AIBat(PongGame& pongGame, const Bat::Side& side):
-  Bat(pongGame, side)
+AIBat::AIBat(anex::IGame& game, const Bat::Side& side):
+  Bat(game, side)
 {
 };
 
@@ -877,112 +726,3 @@ void AIBat::activationFunction()
     aiNetworkRef.backpropagate(expectedOutputs);
   }
 }
-
-void fenster_line(struct fenster* f, int x0, int y0, int x1, int y1,
-                  uint32_t c)
-{
-  int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-  int dy = abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-  int err = (dx > dy ? dx : -dy) / 2, e2;
-  for (;;)
-  {
-    fenster_pixel(f, x0, y0) = c;
-    if (x0 == x1 && y0 == y1)
-    {
-      break;
-    }
-    e2 = err;
-    if (e2 > -dx)
-    {
-      err -= dy;
-      x0 += sx;
-    }
-    if (e2 < dy)
-    {
-      err += dx;
-      y0 += sy;
-    }
-  }
-}
-
-void fenster_rect(struct fenster* f, int x, int y, int w, int h,
-                  uint32_t c)
-{
-  for (int row = 0; row < h; row++)
-  {
-    for (int col = 0; col < w; col++)
-    {
-      fenster_pixel(f, x + col, y + row) = c;
-    }
-  }
-}
-
-void fenster_circle(struct fenster* f, int x, int y, int r, uint32_t c)
-{
-  for (int dy = -r; dy <= r; dy++)
-  {
-    for (int dx = -r; dx <= r; dx++)
-    {
-      if (dx * dx + dy * dy <= r * r)
-      {
-        fenster_pixel(f, x + dx, y + dy) = c;
-      }
-    }
-  }
-}
-
-void fenster_fill(struct fenster* f, int x, int y, uint32_t old,
-                  uint32_t c)
-{
-  if (x < 0 || y < 0 || x >= f->width || y >= f->height)
-  {
-    return;
-  }
-  if (fenster_pixel(f, x, y) == old)
-  {
-    fenster_pixel(f, x, y) = c;
-    fenster_fill(f, x - 1, y, old, c);
-    fenster_fill(f, x + 1, y, old, c);
-    fenster_fill(f, x, y - 1, old, c);
-    fenster_fill(f, x, y + 1, old, c);
-  }
-}
-
-// clang-format off
-uint16_t font5x3[] = {0x0000,0x2092,0x002d,0x5f7d,0x279e,0x52a5,0x7ad6,0x0012,0x4494,0x1491,0x017a,0x05d0,0x1400,0x01c0,0x0400,0x12a4,0x2b6a,0x749a,0x752a,0x38a3,0x4f4a,0x38cf,0x3bce,0x12a7,0x3aae,0x49ae,0x0410,0x1410,0x4454,0x0e38,0x1511,0x10e3,0x73ee,0x5f7a,0x3beb,0x624e,0x3b6b,0x73cf,0x13cf,0x6b4e,0x5bed,0x7497,0x2b27,0x5add,0x7249,0x5b7d,0x5b6b,0x3b6e,0x12eb,0x4f6b,0x5aeb,0x388e,0x2497,0x6b6d,0x256d,0x5f6d,0x5aad,0x24ad,0x72a7,0x6496,0x4889,0x3493,0x002a,0xf000,0x0011,0x6b98,0x3b79,0x7270,0x7b74,0x6750,0x95d6,0xb9ee,0x5b59,0x6410,0xb482,0x56e8,0x6492,0x5be8,0x5b58,0x3b70,0x976a,0xcd6a,0x1370,0x38f0,0x64ba,0x3b68,0x2568,0x5f68,0x54a8,0xb9ad,0x73b8,0x64d6,0x2492,0x3593,0x03e0};
-// clang-format on
-void fenster_text(struct fenster* f, int x, int y, const char* s, int scale,
-                  uint32_t c)
-{
-  while (*s)
-  {
-    char chr = *s++;
-    if (chr > 32)
-    {
-      uint16_t bmp = font5x3[chr - 32];
-      for (int dy = 0; dy < 5; dy++)
-      {
-        for (int dx = 0; dx < 3; dx++)
-        {
-          if (bmp >> (dy * 3 + dx) & 1)
-          {
-            fenster_rect(f, x + dx * scale, y + dy * scale, scale, scale, c);
-          }
-        }
-      }
-    }
-    x = x + 4 * scale;
-  }
-}
-
-std::pair<int, int> fenster_text_bounds(const char* s, int scale)
-{
-  int x = 0, y = 5 * scale;
-  while (*s)
-  {
-    char chr = *s++;
-    x += 4 * scale;
-  }
-  x -= scale;
-  return {x, y};
-};

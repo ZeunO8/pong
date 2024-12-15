@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 include_directories(include)
 include_directories(vendor/Zeuron/include)
 add_subdirectory(vendor/Zeuron)
-include_directories(vendor/Zeuron/vendor/fenster/include)
+include_directories(vendor/Zeuron/vendor/AbstractNexus/include)
 include_directories(vendor/Zeuron/vendor/ByteStream/include)
 
 add_executable(pong src/Pong.cpp)

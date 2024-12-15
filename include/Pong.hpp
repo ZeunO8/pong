@@ -7,21 +7,15 @@
 #include <unordered_map>
 #include <map>
 #include <functional>
+#include <anex/modules/fenster/Fenster.hpp>
 /*
  */
-struct fenster;
 namespace pong
 {
+  using namespace anex::modules::fenster;
   struct PongGame;
   struct PongScene;
-  struct IEntity
-  {
-  	PongGame &pongGame;
-    IEntity(PongGame &pongGame);
-    virtual ~IEntity() = default;
-    virtual void render() = 0;
-  };
-  struct ButtonEntity : IEntity
+  struct ButtonEntity : anex::IEntity
   {
     const char *text;
     int x;
@@ -34,7 +28,7 @@ namespace pong
     int scale;
     std::pair<int, int> textBounds;
     std::function<void()> onEnter;
-    ButtonEntity(PongGame &pongGame,
+    ButtonEntity(anex::IGame &game,
                  const char *text,
                  const int &x,
                  const int &y,
@@ -46,44 +40,13 @@ namespace pong
                  const std::function<void()> &onEnter);
     void render() override;
   };
-  struct Scene
+  struct PongGame : FensterGame
   {
-    PongGame &pongGame;
-    std::unordered_map<unsigned int, std::shared_ptr<IEntity>> entities;
-    unsigned int entitiesCount;
-    Scene(PongGame &pongGame);
-    virtual ~Scene() = default;
-    unsigned int addEntity(const std::shared_ptr<IEntity> &entity);
-    void removeEntity(const unsigned int &id);
-    void render();
-  };
-  struct PongGame
-  {
-    int windowWidth;
-    int windowHeight;
-    std::shared_ptr<uint32_t> buf;
-    struct fenster *f = 0;
-    std::thread windowThread;
-    std::unordered_map<unsigned int, int> keys;
-    std::unordered_map<unsigned int, std::pair<unsigned int, std::map<unsigned int, std::function<void(const bool &)>>>> keyHandlers;
-    std::unordered_map<unsigned int, std::pair<unsigned int, std::map<unsigned int, std::function<void()>>>> keyUpdateHandlers;
-    std::shared_ptr<Scene> scene;
-    bool open = true;
     unsigned int escKeyId = 0;
     PongGame(const int &windowWidth, const int &windowHeight);
-    ~PongGame();
-    void startWindow();
-    void render();
-    void updateKeys();
-    unsigned int addKeyHandler(const unsigned int &key, const std::function<void(const bool &)> &callback);
-    void removeKeyHandler(const unsigned int &key, unsigned int &id);
-    unsigned int addKeyUpdateHandler(const unsigned int &key, const std::function<void()> &callback);
-    void removeKeyUpdateHandler(const unsigned int &key, unsigned int &id);
-    std::shared_ptr<Scene> setScene(const std::shared_ptr<Scene> &scene);
-    void close();
     void onEscape(const bool &pressed);
   };
-  struct MainMenuScene : Scene
+  struct MainMenuScene : anex::IScene
   {
     int borderWidth;
     int padding;
@@ -95,7 +58,7 @@ namespace pong
     std::shared_ptr<ButtonEntity> playerVsPlayerButton;
     std::shared_ptr<ButtonEntity> exitButton;
     std::vector<std::shared_ptr<ButtonEntity>> buttonsList;
-    MainMenuScene(PongGame &pongGame);
+    MainMenuScene(anex::IGame &game);
     ~MainMenuScene();
     void positionButtons();
     void onUpKey(const bool &pressed);
@@ -106,7 +69,7 @@ namespace pong
     void onPlayerVsPlayerEnter();
     void onExitEnter();
   };
-  struct Bat : IEntity
+  struct Bat : anex::IEntity
   {
     enum Side
     {
@@ -118,7 +81,7 @@ namespace pong
     int height;
     Side side;
     float velocityY = 0;
-    Bat(PongGame &pongGame, const Bat::Side &side);
+    Bat(anex::IGame &game, const Bat::Side &side);
     void render() override;
     void onUpKey(const bool &pressed);
     void onDownKey(const bool &pressed);
@@ -133,7 +96,7 @@ namespace pong
     Point start;
     Point end;
   };
-  struct Ball : IEntity
+  struct Ball : anex::IEntity
   {
     PongScene &pongScene;
     float x;
@@ -143,7 +106,7 @@ namespace pong
     float velocityY;
     PongScene *pongScenePointer = 0;
     std::pair<std::vector<Bounce>, Point> trajectory;
-    Ball(PongGame &pongGame, PongScene &pongScene, const int &radius);
+    Ball(anex::IGame &game, PongScene &pongScene, const int &radius);
     void startMoving();
     void render() override;
     void reset();
@@ -156,7 +119,7 @@ namespace pong
     float width;
     float height;
   };
-  struct Board : IEntity
+  struct Board : anex::IEntity
   {
     PongScene &pongScene;
     float boardX;
@@ -164,11 +127,11 @@ namespace pong
     float boardWidth;
     float boardHeight;
     PlayArea playArea;
-    Board(PongGame &pongGame, PongScene &pongScene);
+    Board(anex::IGame &game, PongScene &pongScene);
     void render() override;
     PlayArea& getPlayArea();
   };
-  struct Countdown : IEntity
+  struct Countdown : anex::IEntity
   {
     int x;
     int y;
@@ -176,12 +139,12 @@ namespace pong
     int timer;
     std::function<void()> onZero;
     std::thread countdownThread;
-    Countdown(PongGame &pongGame, const int &x, const int &y, const int &scale, const std::function<void()> &onZero);
+    Countdown(anex::IGame &game, const int &x, const int &y, const int &scale, const std::function<void()> &onZero);
     ~Countdown();
     void render() override;
     void startCountdown();
   };
-  struct PongScene : Scene
+  struct PongScene : anex::IScene
   {
     std::shared_ptr<Bat> leftBat;
     std::shared_ptr<Bat> rightBat;
@@ -194,7 +157,7 @@ namespace pong
     unsigned int countdownId;
     unsigned int ballId;
     bool gameStarted = false;
-    PongScene(PongGame &pongGame, const std::shared_ptr<Bat> &leftBat, const std::shared_ptr<Bat> &rightBat);
+    PongScene(anex::IGame &game, const std::shared_ptr<Bat> &leftBat, const std::shared_ptr<Bat> &rightBat);
     ~PongScene();
     void onCountdownZero();
   };
@@ -208,13 +171,13 @@ namespace pong
     UseKeys useKeys;
     unsigned int upKeyId;
     unsigned int downKeyId;
-    PlayerBat(PongGame &pongGame, const Bat::Side &side, const UseKeys &useKeys);
+    PlayerBat(anex::IGame &game, const Bat::Side &side, const UseKeys &useKeys);
   };
   struct AIBat : Bat
   {
     std::thread activationThread;
     std::shared_ptr<PongScene> pongScenePointer;
-    AIBat(PongGame &pongGame, const Bat::Side &side);
+    AIBat(anex::IGame &game, const Bat::Side &side);
     void startActivation(const std::shared_ptr<PongScene> &pongScenePointer);
     void activationFunction();
   };
